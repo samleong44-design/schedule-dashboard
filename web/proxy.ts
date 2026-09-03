@@ -28,11 +28,15 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isLogin = request.nextUrl.pathname.startsWith("/login");
-  if (!user && !isLogin) {
+  const path = request.nextUrl.pathname;
+  const isPublic =
+    path.startsWith("/login") ||
+    path.startsWith("/forgot-password") ||
+    path.startsWith("/reset-password");
+  if (!user && !isPublic) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
-  if (user && isLogin) {
+  if (user && path.startsWith("/login")) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
   return response;
