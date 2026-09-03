@@ -1,0 +1,5 @@
+# Next.js app lives in web/; Netlify auto-detects Next.js and applies its runtime.
+[build]
+  base = "web"
+  command = "npm run build"
+  publish = ".next"
