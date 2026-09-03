@@ -1,5 +1,7 @@
-# Next.js app lives in web/; Netlify auto-detects Next.js and applies its runtime.
+# Next.js app lives in web/. No publish dir — the Next.js runtime plugin manages output.
 [build]
   base = "web"
   command = "npm run build"
-  publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
