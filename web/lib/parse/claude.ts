@@ -40,7 +40,8 @@ export async function mapFieldsWithClaude(
 
   const client = new Anthropic(); // reads ANTHROPIC_API_KEY
 
-  const response = await client.messages.parse({
+  // Streaming: required by the SDK for large max_tokens, and immune to HTTP timeouts.
+  const stream = client.messages.stream({
     model: "claude-opus-5",
     max_tokens: 32000,
     output_config: {
@@ -62,9 +63,21 @@ export async function mapFieldsWithClaude(
     ],
   });
 
-  const parsed = response.parsed_output;
-  if (!parsed) {
+  const response = await stream.finalMessage();
+  if (response.stop_reason === "max_tokens") {
+    throw new Error("Schedule too large to parse in one pass — split the file and try again.");
+  }
+  if (response.stop_reason === "refusal") {
+    throw new Error("The parser declined this file. Check it is a plain carrier schedule.");
+  }
+  const textBlock = response.content.find((b) => b.type === "text");
+  if (!textBlock || textBlock.type !== "text") {
     throw new Error("Could not identify the schedule columns in this file.");
   }
-  return { rows: parsed.rows, notes: parsed.notes };
+  try {
+    const parsed = ScheduleSchema.parse(JSON.parse(textBlock.text));
+    return { rows: parsed.rows, notes: parsed.notes };
+  } catch {
+    throw new Error("Could not identify the schedule columns in this file.");
+  }
 }
