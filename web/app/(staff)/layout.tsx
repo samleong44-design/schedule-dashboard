@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { redirect } from "next/navigation";
 import { NavLinks } from "@/components/nav-links";
 import { SignOutButton } from "@/components/sign-out";
 import { getProfile } from "@/lib/queries";
@@ -10,6 +11,7 @@ export const dynamic = "force-dynamic";
 // Staff/Admin shell per docs/ui-guide.md.
 export default async function StaffLayout({ children }: LayoutProps<"/">) {
   const profile = await getProfile();
+  if (profile?.role === "customer") redirect("/search");
   const supabase = await createClient();
   const { count } = await supabase
     .from("booking_requests")
