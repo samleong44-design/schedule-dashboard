@@ -8,6 +8,7 @@ const items = [
   { href: "/upload", label: "Upload Schedule" },
   { href: "/admin/bookings", label: "Booking Requests" },
   { href: "/admin/uploads", label: "Upload History" },
+  { href: "/settings", label: "Settings" },
 ] as const;
 
 const adminItems = [

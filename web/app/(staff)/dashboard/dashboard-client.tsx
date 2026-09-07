@@ -12,7 +12,15 @@ type Kpis = {
   lastUploads: { carrier: string; age: string; stale: boolean }[];
 };
 
-export function DashboardClient({ sailings, kpis }: { sailings: SailingRow[]; kpis: Kpis }) {
+export function DashboardClient({
+  sailings,
+  kpis,
+  portNames = [],
+}: {
+  sailings: SailingRow[];
+  kpis: Kpis;
+  portNames?: string[];
+}) {
   const [polQuery, setPolQuery] = useState("");
   const [podQuery, setPodQuery] = useState("");
   const [readiness, setReadiness] = useState("");
@@ -27,6 +35,26 @@ export function DashboardClient({ sailings, kpis }: { sailings: SailingRow[]; kp
   );
 
   const hasFilters = polQuery || podQuery || readiness || mode;
+
+  const exportCsv = () => {
+    const header = ["Carrier", "Vessel", "Voyage", "POL", "POL code", "POD", "POD code", "Mode", "ETD", "ETA", "CY Cutoff"];
+    const esc = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+    const lines = [
+      header.join(","),
+      ...filtered.map((s) =>
+        [s.carrier, s.vessel, s.voyage, s.polName, s.pol, s.podName, s.pod, s.mode, s.etd, s.eta, s.cyCutoff]
+          .map(esc)
+          .join(","),
+      ),
+    ];
+    // ﻿ BOM so Excel opens it as UTF-8
+    const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `schedule-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
 
   return (
     <>
@@ -67,14 +95,17 @@ export function DashboardClient({ sailings, kpis }: { sailings: SailingRow[]; kp
 
       <Card>
         <div className="flex items-end gap-3 border-b border-line px-4 py-3">
+          <datalist id="port-options">
+            {portNames.map((n) => <option key={n} value={n} />)}
+          </datalist>
           <div>
             <label className="mb-1 block text-xs font-semibold text-muted" htmlFor="f-pol">Port of loading</label>
-            <input id="f-pol" value={polQuery} onChange={(e) => setPolQuery(e.target.value)}
+            <input id="f-pol" list="port-options" value={polQuery} onChange={(e) => setPolQuery(e.target.value)}
               placeholder="e.g. Port Klang" className="w-44 rounded-md border border-line px-2.5 py-1.5 text-sm" />
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-muted" htmlFor="f-pod">Port of discharge</label>
-            <input id="f-pod" value={podQuery} onChange={(e) => setPodQuery(e.target.value)}
+            <input id="f-pod" list="port-options" value={podQuery} onChange={(e) => setPodQuery(e.target.value)}
               placeholder="e.g. Jebel Ali" className="w-44 rounded-md border border-line px-2.5 py-1.5 text-sm" />
           </div>
           <div>
@@ -99,8 +130,9 @@ export function DashboardClient({ sailings, kpis }: { sailings: SailingRow[]; kp
             </button>
           )}
           <div className="flex-1" />
-          <button type="button" className="rounded-md border border-line px-2.5 py-1.5 text-sm font-medium hover:bg-slate-50">
-            Export ▾
+          <button type="button" onClick={exportCsv} disabled={filtered.length === 0}
+            className="rounded-md border border-line px-2.5 py-1.5 text-sm font-medium hover:bg-slate-50 disabled:opacity-50">
+            Export CSV
           </button>
         </div>
 

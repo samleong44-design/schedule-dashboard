@@ -1,12 +1,19 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/ui";
 import { getSailings, getKpis } from "@/lib/queries";
+import { createClient } from "@/lib/supabase/server";
 import { DashboardClient } from "./dashboard-client";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [sailings, kpis] = await Promise.all([getSailings(), getKpis()]);
+  const supabase = await createClient();
+  const [sailings, kpis, { data: ports }] = await Promise.all([
+    getSailings(),
+    getKpis(),
+    supabase.from("ports").select("name").eq("is_active", true).order("name"),
+  ]);
+  const portNames = (ports ?? []).map((p) => p.name);
 
   return (
     <>
@@ -18,7 +25,7 @@ export default async function DashboardPage() {
           </Link>
         }
       />
-      <DashboardClient sailings={sailings} kpis={kpis} />
+      <DashboardClient sailings={sailings} kpis={kpis} portNames={portNames} />
     </>
   );
 }
