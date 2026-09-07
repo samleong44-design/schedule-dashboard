@@ -14,12 +14,15 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
 
+  const [email, setEmail] = useState("");
+
   useEffect(() => {
     // The recovery link signs the user in via the URL; if no session appears,
     // the link was expired or already used.
     const supabase = createClient();
     const timer = setTimeout(async () => {
       const { data } = await supabase.auth.getSession();
+      setEmail(data.session?.user.email ?? "");
       setState(data.session ? "ready" : "expired");
     }, 1000);
     return () => clearTimeout(timer);
@@ -40,7 +43,16 @@ export default function ResetPasswordPage() {
       setPending(false);
       return;
     }
-    window.location.assign("/dashboard");
+    // Land on the right side of the app for this account's role.
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user!.id)
+      .single();
+    window.location.assign(profile?.role === "customer" ? "/search" : "/dashboard");
   };
 
   return (
@@ -61,7 +73,8 @@ export default function ResetPasswordPage() {
 
       {state === "ready" && (
         <>
-          <h1 className="mb-4 text-lg font-semibold">Set a new password</h1>
+          <h1 className="mb-1 text-lg font-semibold">Set a new password</h1>
+          {email && <p className="mb-4 text-sm text-muted">for <strong>{email}</strong></p>}
 
           {error && (
             <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
