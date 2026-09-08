@@ -95,7 +95,7 @@ export function BookingsClient({ requests }: { requests: BookingRow[] }) {
 
           {selected.dangerousGoods && (
             <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 text-sm font-semibold text-red-600">
-              ⚠ DANGEROUS GOODS · {selected.dangerousGoods.un} · Class {selected.dangerousGoods.cls}
+              ⚠ DANGEROUS GOODS · {selected.dangerousGoods.un} · IMCO {selected.dangerousGoods.cls}
             </div>
           )}
 

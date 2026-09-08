@@ -2,7 +2,6 @@ import Link from "next/link";
 import { Card, EmptyState, Th, Td } from "@/components/ui";
 import { createClient } from "@/lib/supabase/server";
 import { fmtDate } from "@/lib/format";
-import { SaveLaneButton } from "./save-lane-button";
 
 export const dynamic = "force-dynamic";
 
@@ -88,11 +87,8 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
 
       {searched && (
         <Card className="max-w-4xl">
-          <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
-            <div className="text-sm font-medium">
-              {pol || "Anywhere"} → {pod || "Anywhere"}
-            </div>
-            <SaveLaneButton pol={pol} pod={pod} />
+          <div className="border-b border-line px-4 py-2.5 text-sm font-medium">
+            {pol || "Anywhere"} → {pod || "Anywhere"}
           </div>
           {rows.length === 0 ? (
             <EmptyState message="No sailings found for this lane and date. Try widening the date window, or contact us." />
@@ -100,23 +96,21 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
             <table className="w-full border-collapse">
               <thead>
                 <tr>
-                  <Th>VESSEL</Th><Th>VOYAGE</Th><Th>POL</Th><Th>POD</Th><Th>MODE</Th>
+                  <Th>VESSEL / VOYAGE</Th><Th>POL</Th><Th>POD</Th>
                   <Th right>DEPARTURE</Th><Th right>ARRIVAL</Th><Th />
                 </tr>
               </thead>
               <tbody>
                 {rows.map((s) => (
                   <tr key={s.id} className="hover:bg-slate-50">
-                    <Td>{s.vessel_name}</Td>
-                    <Td>{s.voyage_no}</Td>
+                    <Td className="whitespace-nowrap">{s.vessel_name} {s.voyage_no}</Td>
                     <Td>{s.pol_name} <span className="text-xs text-faint">{s.pol_code}</span></Td>
                     <Td>{s.pod_name} <span className="text-xs text-faint">{s.pod_code}</span></Td>
-                    <Td>{s.mode}</Td>
                     <Td right>{fmtDate(s.etd)}</Td>
                     <Td right>{fmtDate(s.eta)}</Td>
                     <Td right>
                       <Link href={`/booking/new?sailing=${s.id}`}
-                        className="rounded-md bg-accent px-2.5 py-1 text-xs font-semibold text-white hover:bg-accent-hover">
+                        className="whitespace-nowrap rounded-md bg-accent px-2.5 py-1 text-xs font-semibold text-white hover:bg-accent-hover">
                         Booking Request
                       </Link>
                     </Td>

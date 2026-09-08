@@ -13,7 +13,7 @@ export default async function RequestsPage() {
   // RLS scopes this to the customer's own company (docs/04) — colleagues see each other's.
   const { data: requests } = await supabase
     .from("booking_requests")
-    .select("id, sailing_snapshot, container_qty, status, created_at, container_types(code)")
+    .select("id, sailing_snapshot, containers, container_qty, status, created_at, container_types(code)")
     .order("created_at", { ascending: false });
 
   return (
@@ -39,7 +39,13 @@ export default async function RequestsPage() {
                     <Td className="font-mono text-xs">BR-{String(r.id).slice(0, 8).toUpperCase()}</Td>
                     <Td>{snap.vessel ? `${snap.vessel} · ${snap.voyage}` : "—"}</Td>
                     <Td>{snap.pol ? `${snap.pol} → ${snap.pod}` : "—"}</Td>
-                    <Td>{r.container_qty ? `${r.container_qty} × ${r.container_types?.code ?? ""}` : "—"}</Td>
+                    <Td>
+                      {Array.isArray(r.containers) && r.containers.length > 0
+                        ? r.containers.map((l: { qty: number; code: string }) => `${l.qty}×${l.code}`).join(" + ")
+                        : r.container_qty
+                          ? `${r.container_qty} × ${r.container_types?.code ?? ""}`
+                          : "—"}
+                    </Td>
                     <Td right>{fmtDate(r.created_at)}</Td>
                     <Td><StatusBadge tone={statusTone[r.status] ?? "neutral"}>{statusLabel[r.status] ?? r.status}</StatusBadge></Td>
                   </tr>

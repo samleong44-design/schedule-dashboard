@@ -13,7 +13,7 @@ export default async function BookingConfirmationPage({ searchParams }: PageProp
   const supabase = await createClient();
   const { data: req } = await supabase
     .from("booking_requests")
-    .select("id, sailing_snapshot, container_qty, container_types(code)")
+    .select("id, sailing_snapshot, containers, container_qty, container_types(code)")
     .eq("id", id)
     .maybeSingle();
   if (!req) redirect("/requests");
@@ -36,9 +36,14 @@ export default async function BookingConfirmationPage({ searchParams }: PageProp
           {snap?.pol && (
             <div className="flex justify-between"><dt className="text-muted">Route</dt><dd>{snap.pol} → {snap.pod}</dd></div>
           )}
-          {req.container_qty && (
+          {Array.isArray(req.containers) && req.containers.length > 0 ? (
+            <div className="flex justify-between"><dt className="text-muted">Containers</dt>
+              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+              <dd>{(req.containers as any[]).map((l) => `${l.qty}×${l.code}`).join(" + ")}</dd>
+            </div>
+          ) : req.container_qty ? (
             <div className="flex justify-between"><dt className="text-muted">Containers</dt><dd>{req.container_qty} × {ct ?? ""}</dd></div>
-          )}
+          ) : null}
         </dl>
         <p className="mt-4 text-sm">
           Our team will contact you to confirm. <strong>This is a request, not a confirmed booking.</strong>

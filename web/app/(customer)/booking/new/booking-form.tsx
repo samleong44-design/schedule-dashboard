@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Card, PrimaryButton } from "@/components/ui";
 
 type ContainerType = { id: string; code: string; description: string | null };
+type ContainerLine = { container_type_id: string; qty: number };
 
 const field = "w-full rounded-md border border-line px-2.5 py-1.5 text-sm";
 const label = "mb-1 block text-xs font-semibold text-muted";
@@ -20,19 +21,36 @@ export function BookingForm({
   contactName: string;
   contactEmail: string;
 }) {
+  const [lines, setLines] = useState<ContainerLine[]>([
+    { container_type_id: containerTypes[0]?.id ?? "", qty: 1 },
+  ]);
   const [dg, setDg] = useState(false);
+  const [freight, setFreight] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
 
+  const setLine = (i: number, patch: Partial<ContainerLine>) =>
+    setLines((ls) => ls.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+
   const submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!freight) {
+      setError("Please choose freight prepaid or freight collect.");
+      return;
+    }
     setPending(true);
     setError("");
     const data = Object.fromEntries(new FormData(e.currentTarget).entries());
     const res = await fetch("/api/booking-requests", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...data, sailing_id: sailingId, is_dangerous_goods: dg }),
+      body: JSON.stringify({
+        ...data,
+        sailing_id: sailingId,
+        is_dangerous_goods: dg,
+        freight_term: freight,
+        containers: lines,
+      }),
     });
     const body = await res.json();
     if (!res.ok) {
@@ -52,22 +70,53 @@ export function BookingForm({
       )}
       <form onSubmit={submit}>
         <div className={section}>CARGO</div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={label} htmlFor="container_type_id">Container type</label>
-            <select id="container_type_id" name="container_type_id" required className={field}>
+
+        <label className={label}>Containers</label>
+        {lines.map((l, i) => (
+          <div key={i} className="mb-2 flex items-center gap-2">
+            <input
+              type="number"
+              min={1}
+              value={l.qty}
+              onChange={(e) => setLine(i, { qty: Math.max(1, Number(e.target.value)) })}
+              className="w-20 rounded-md border border-line px-2.5 py-1.5 text-sm"
+              aria-label="Quantity"
+            />
+            <span className="text-sm text-muted">×</span>
+            <select
+              value={l.container_type_id}
+              onChange={(e) => setLine(i, { container_type_id: e.target.value })}
+              className="flex-1 rounded-md border border-line px-2.5 py-1.5 text-sm"
+              aria-label="Container type"
+            >
               {containerTypes.map((c) => (
                 <option key={c.id} value={c.id}>{c.code}{c.description ? ` — ${c.description}` : ""}</option>
               ))}
             </select>
+            {lines.length > 1 && (
+              <button type="button" onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))}
+                className="text-xs text-muted hover:text-red-600">
+                Remove
+              </button>
+            )}
           </div>
-          <div>
-            <label className={label} htmlFor="container_qty">Quantity</label>
-            <input id="container_qty" name="container_qty" type="number" min={1} required defaultValue={1} className={field} />
-          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() => setLines((ls) => [...ls, { container_type_id: containerTypes[0]?.id ?? "", qty: 1 }])}
+          className="mb-3 text-xs font-medium text-accent hover:text-accent-hover"
+        >
+          + Add another container type
+        </button>
+
+        <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2">
             <label className={label} htmlFor="commodity">Commodity description</label>
             <input id="commodity" name="commodity" required className={field} />
+          </div>
+          <div className="col-span-2">
+            <label className={label} htmlFor="hs_code">HS code</label>
+            <input id="hs_code" name="hs_code" placeholder="e.g. 8471.30" className={field} />
           </div>
           <div>
             <label className={label} htmlFor="gross_weight_kg">Gross weight (kg)</label>
@@ -79,19 +128,27 @@ export function BookingForm({
           </div>
         </div>
 
+        <div className={section}>FREIGHT TERM</div>
+        <div className="flex gap-6 text-sm">
+          <label className="flex items-center gap-2">
+            <input type="radio" name="freight_choice" checked={freight === "prepaid"} onChange={() => setFreight("prepaid")} />
+            Freight prepaid
+          </label>
+          <label className="flex items-center gap-2">
+            <input type="radio" name="freight_choice" checked={freight === "collect"} onChange={() => setFreight("collect")} />
+            Freight collect
+          </label>
+        </div>
+
         <div className={section}>PARTIES</div>
         <div className="grid grid-cols-2 gap-3">
-          <div className="col-span-2">
+          <div>
             <label className={label} htmlFor="shipper">Shipper</label>
             <input id="shipper" name="shipper" required className={field} />
           </div>
           <div>
             <label className={label} htmlFor="consignee">Consignee</label>
             <input id="consignee" name="consignee" className={field} />
-          </div>
-          <div>
-            <label className={label} htmlFor="notify_party">Notify party</label>
-            <input id="notify_party" name="notify_party" className={field} />
           </div>
           <div>
             <label className={label} htmlFor="contact_name">Contact person</label>
@@ -119,7 +176,7 @@ export function BookingForm({
               <input id="un_number" name="un_number" required placeholder="UN1203" className={field} />
             </div>
             <div>
-              <label className={label} htmlFor="dg_class">Class (required)</label>
+              <label className={label} htmlFor="dg_class">IMCO number (required)</label>
               <input id="dg_class" name="dg_class" required placeholder="3" className={field} />
             </div>
           </div>
@@ -129,10 +186,7 @@ export function BookingForm({
             <label className={label} htmlFor="reefer_temp_c">Reefer temperature (°C, if any)</label>
             <input id="reefer_temp_c" name="reefer_temp_c" type="number" step="0.1" className={field} />
           </div>
-          <div>
-            <label className={label} htmlFor="oog_dimensions">Out-of-gauge dimensions (if any)</label>
-            <input id="oog_dimensions" name="oog_dimensions" className={field} />
-          </div>
+          <div />
           <div className="col-span-2">
             <label className={label} htmlFor="remarks">Remarks</label>
             <textarea id="remarks" name="remarks" rows={3} className={field} />

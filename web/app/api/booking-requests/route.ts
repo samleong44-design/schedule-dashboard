@@ -23,7 +23,27 @@ export async function POST(request: Request) {
   const body = await request.json();
   if (!body.sailing_id) return NextResponse.json({ error: "sailing_id required" }, { status: 400 });
   if (body.is_dangerous_goods && (!body.un_number || !body.dg_class)) {
-    return NextResponse.json({ error: "UN number and class are required for dangerous goods" }, { status: 400 });
+    return NextResponse.json({ error: "UN number and IMCO number are required for dangerous goods" }, { status: 400 });
+  }
+  if (!["prepaid", "collect"].includes(body.freight_term)) {
+    return NextResponse.json({ error: "Choose freight prepaid or freight collect" }, { status: 400 });
+  }
+
+  // Container lines: [{container_type_id, qty}] — resolve codes server-side so
+  // the stored record is readable even if a type is later renamed.
+  const rawLines = Array.isArray(body.containers) ? body.containers : [];
+  const { data: types } = await supabase.from("container_types").select("id, code");
+  const typeCode = new Map((types ?? []).map((t) => [t.id, t.code]));
+  const containers = rawLines
+    .filter((l: { container_type_id?: string; qty?: number }) =>
+      typeCode.has(l.container_type_id ?? "") && Number(l.qty) >= 1)
+    .map((l: { container_type_id: string; qty: number }) => ({
+      container_type_id: l.container_type_id,
+      code: typeCode.get(l.container_type_id),
+      qty: Math.floor(Number(l.qty)),
+    }));
+  if (containers.length === 0) {
+    return NextResponse.json({ error: "Add at least one container line" }, { status: 400 });
   }
 
   const { data: sailing } = await supabase
@@ -54,14 +74,17 @@ export async function POST(request: Request) {
       sailing_snapshot: snapshot,
       customer_company_id: profile.customer_company_id,
       submitted_by: user.id,
-      container_type_id: str(body.container_type_id),
-      container_qty: num(body.container_qty),
+      containers,
+      // Legacy single-type columns kept filled from the first line for older views
+      container_type_id: containers[0].container_type_id,
+      container_qty: containers.reduce((n: number, l: { qty: number }) => n + l.qty, 0),
       commodity: str(body.commodity),
+      hs_code: str(body.hs_code),
+      freight_term: body.freight_term,
       gross_weight_kg: num(body.gross_weight_kg),
       cargo_ready_date: str(body.cargo_ready_date),
       shipper: str(body.shipper),
       consignee: str(body.consignee),
-      notify_party: str(body.notify_party),
       contact_name: str(body.contact_name),
       contact_phone: str(body.contact_phone),
       contact_email: str(body.contact_email),
@@ -69,7 +92,6 @@ export async function POST(request: Request) {
       un_number: str(body.un_number),
       dg_class: str(body.dg_class),
       reefer_temp_c: num(body.reefer_temp_c),
-      oog_dimensions: str(body.oog_dimensions),
       remarks: str(body.remarks),
     })
     .select("id")

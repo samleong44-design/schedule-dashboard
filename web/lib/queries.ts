@@ -134,7 +134,15 @@ export async function getBookingRequests() {
     submitted: fmtDate(r.created_at),
     status: r.status as "new" | "in_progress" | "closed",
     carrier: r.sailings?.carriers?.name ?? null,
-    cargo: [r.container_qty, r.commodity, r.gross_weight_kg ? `${r.gross_weight_kg} kg` : null]
+    cargo: [
+      Array.isArray(r.containers) && r.containers.length > 0
+        ? r.containers.map((l: { qty: number; code: string }) => `${l.qty}×${l.code}`).join(" + ")
+        : r.container_qty,
+      r.commodity,
+      r.hs_code ? `HS ${r.hs_code}` : null,
+      r.gross_weight_kg ? `${r.gross_weight_kg} kg` : null,
+      r.freight_term ? `Freight ${r.freight_term}` : null,
+    ]
       .filter(Boolean)
       .join(" · ") || "—",
     contact: [r.contact_name, r.contact_email].filter(Boolean).join(" · ") || "—",
