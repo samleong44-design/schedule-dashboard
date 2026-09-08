@@ -19,7 +19,7 @@ export default async function RequestsPage() {
   return (
     <>
       <h1 className="mb-4 text-2xl font-semibold">My requests</h1>
-      <Card className="max-w-3xl">
+      <Card>
         {(requests ?? []).length === 0 ? (
           <EmptyState
             message="You haven't submitted any booking requests yet."
@@ -55,7 +55,7 @@ export default async function RequestsPage() {
           </table>
         )}
       </Card>
-      <p className="mt-3 max-w-3xl text-xs text-muted">
+      <p className="mt-3 text-xs text-muted">
         To change a submitted request, submit a new one and mention the change in remarks.
       </p>
     </>

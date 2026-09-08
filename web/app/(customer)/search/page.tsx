@@ -42,7 +42,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
     <>
       <h1 className="mb-4 text-2xl font-semibold">Find a sailing</h1>
 
-      <Card className="mb-4 max-w-4xl p-4">
+      <Card className="mb-4 p-4">
         <form method="get" className="flex items-end gap-3">
           <datalist id="port-options">
             {(ports ?? []).map((p) => <option key={p.name} value={p.name} />)}
@@ -86,7 +86,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
       </Card>
 
       {searched && (
-        <Card className="max-w-4xl">
+        <Card>
           <div className="border-b border-line px-4 py-2.5 text-sm font-medium">
             {pol || "Anywhere"} → {pod || "Anywhere"}
           </div>

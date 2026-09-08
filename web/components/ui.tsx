@@ -56,10 +56,10 @@ export function Td({ children, right = false, className = "" }: { children?: Rea
   );
 }
 
-export function PrimaryButton({ children, onClick, destructive = false }: { children: ReactNode; onClick?: () => void; destructive?: boolean }) {
+export function PrimaryButton({ children, onClick, destructive = false, type = "button" }: { children: ReactNode; onClick?: () => void; destructive?: boolean; type?: "button" | "submit" }) {
   return (
     <button
-      type="button"
+      type={type}
       onClick={onClick}
       className={`rounded-md px-3.5 py-1.5 text-sm font-semibold text-white ${destructive ? "bg-red-600 hover:bg-red-700" : "bg-accent hover:bg-accent-hover"}`}
     >

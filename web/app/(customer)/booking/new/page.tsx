@@ -33,7 +33,7 @@ export default async function NewBookingPage({ searchParams }: PageProps<"/booki
   return (
     <>
       <h1 className="mb-4 text-2xl font-semibold">Booking request</h1>
-      <Card className="mb-4 max-w-2xl border-l-4 border-l-accent p-4">
+      <Card className="mb-4 border-l-4 border-l-accent p-4">
         <div className="text-sm font-semibold">
           {sailing.vessel_name} · {sailing.voyage_no} · {sailing.mode}
         </div>

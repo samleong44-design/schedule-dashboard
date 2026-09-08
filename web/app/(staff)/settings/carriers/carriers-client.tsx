@@ -68,7 +68,7 @@ export function CarriersClient({ carriers }: { carriers: Carrier[] }) {
               placeholder="WHLC" maxLength={4}
               className="w-28 rounded-md border border-line px-2.5 py-1.5 font-mono text-sm uppercase" />
           </div>
-          <PrimaryButton>{pending ? "Adding…" : "Add carrier"}</PrimaryButton>
+          <PrimaryButton type="submit">{pending ? "Adding…" : "Add carrier"}</PrimaryButton>
         </form>
       </Card>
 

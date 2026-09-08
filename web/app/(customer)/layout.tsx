@@ -25,7 +25,9 @@ export default async function CustomerLayout({ children }: LayoutProps<"/">) {
           <SignOutButton />
         </div>
       </header>
-      <main className="flex-1 p-6">{children}</main>
+      <main className="flex-1 p-6">
+        <div className="mx-auto w-full max-w-4xl">{children}</div>
+      </main>
       <footer className="border-t border-line bg-white px-6 py-5">
         <div className="mx-auto flex max-w-4xl flex-wrap justify-between gap-6 text-xs text-muted">
           <div>

@@ -62,7 +62,7 @@ export function BookingForm({
   };
 
   return (
-    <Card className="max-w-2xl p-5">
+    <Card className="p-5">
       {error && (
         <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {error}
@@ -194,7 +194,7 @@ export function BookingForm({
         </div>
 
         <div className="mt-5 flex justify-end">
-          <PrimaryButton>{pending ? "Submitting…" : "Submit request"}</PrimaryButton>
+          <PrimaryButton type="submit">{pending ? "Submitting…" : "Submit request"}</PrimaryButton>
         </div>
       </form>
     </Card>

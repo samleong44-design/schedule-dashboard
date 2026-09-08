@@ -93,7 +93,7 @@ export function PortsClient({ ports }: { ports: Port[] }) {
               placeholder="Malaysia"
               className="w-40 rounded-md border border-line px-2.5 py-1.5 text-sm" />
           </div>
-          <PrimaryButton>{pending ? "Adding…" : "Add port"}</PrimaryButton>
+          <PrimaryButton type="submit">{pending ? "Adding…" : "Add port"}</PrimaryButton>
         </form>
       </Card>
 
