@@ -28,6 +28,10 @@ export async function POST(request: Request) {
   if (!["prepaid", "collect"].includes(body.freight_term)) {
     return NextResponse.json({ error: "Choose freight prepaid or freight collect" }, { status: 400 });
   }
+  const hsDigits = String(body.hs_code ?? "").replace(/\D/g, "");
+  if (hsDigits.length < 6) {
+    return NextResponse.json({ error: "HS code must have at least 6 digits, e.g. 1234.56" }, { status: 400 });
+  }
 
   // Container lines: [{container_type_id, qty}] — resolve codes server-side so
   // the stored record is readable even if a type is later renamed.
@@ -98,7 +102,85 @@ export async function POST(request: Request) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  // Email notification to staff: not wired yet (needs an email provider).
-  // The admin inbox is the source of truth either way (docs/04).
+
+  // Notify the team. The DB row is the source of truth — a mail failure never
+  // fails the customer's submission (docs/04).
+  try {
+    await sendBookingEmail({
+      ref: `BR-${String(created.id).slice(0, 8).toUpperCase()}`,
+      snapshot,
+      containers,
+      body,
+      companyId: profile.customer_company_id,
+      supabaseUserEmail: user.email ?? "",
+    });
+  } catch (e) {
+    console.error("Booking notification email failed:", e);
+  }
+
   return NextResponse.json({ id: created.id });
+}
+
+// ponytail: recipients hardcoded per YAGO's request; move to settings when they change
+const BOOKING_RECIPIENTS = [
+  "cs@yago.com.my",
+  "kate@yago.com.my",
+  "chingwei@yago.com.my",
+  "jace@yago.com.my",
+];
+
+async function sendBookingEmail(args: {
+  ref: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  snapshot: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  containers: any[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  body: any;
+  companyId: string;
+  supabaseUserEmail: string;
+}) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.warn("RESEND_API_KEY not set — booking email skipped");
+    return;
+  }
+  const { ref, snapshot, containers, body } = args;
+  const lines = containers.map((l) => `${l.qty} x ${l.code}`).join(" + ");
+  const dg = body.is_dangerous_goods
+    ? `\n*** DANGEROUS GOODS: UN ${body.un_number} / IMCO ${body.dg_class} ***\n`
+    : "";
+  const text = [
+    `New booking request ${ref}`,
+    ``,
+    `Sailing:   ${snapshot.vessel ?? "-"} ${snapshot.voyage ?? ""}`,
+    `Route:     ${snapshot.pol ?? "-"} -> ${snapshot.pod ?? "-"}`,
+    `ETD:       ${snapshot.etd ?? "-"}`,
+    `Containers: ${lines}`,
+    `Commodity: ${body.commodity ?? "-"} (HS ${body.hs_code ?? "-"})`,
+    `Weight:    ${body.gross_weight_kg ?? "-"} kg`,
+    `Freight:   ${body.freight_term}`,
+    `Cargo ready: ${body.cargo_ready_date ?? "-"}`,
+    dg,
+    `Shipper:   ${body.shipper ?? "-"}`,
+    `Consignee: ${body.consignee ?? "-"}`,
+    `Contact:   ${body.contact_name ?? "-"} / ${body.contact_phone ?? "-"} / ${body.contact_email ?? "-"}`,
+    body.remarks ? `Remarks:   ${body.remarks}` : "",
+    ``,
+    `Reply directly to the customer contact above to proceed.`,
+    `Full record: https://yago-schedule.netlify.app/admin/bookings`,
+  ].join("\n");
+
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      from: process.env.BOOKING_FROM ?? "YAGO Schedule <bookings@yago.com.my>",
+      to: BOOKING_RECIPIENTS,
+      reply_to: body.contact_email || undefined,
+      subject: `${body.is_dangerous_goods ? "[DG] " : ""}Booking request ${ref} — ${snapshot.pol ?? ""} to ${snapshot.pod ?? ""}`,
+      text,
+    }),
+  });
+  if (!res.ok) throw new Error(`Resend ${res.status}: ${await res.text()}`);
 }

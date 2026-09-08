@@ -38,6 +38,12 @@ export function BookingForm({
       setError("Please choose freight prepaid or freight collect.");
       return;
     }
+    const form = new FormData(e.currentTarget);
+    const hsDigits = String(form.get("hs_code") ?? "").replace(/\D/g, "");
+    if (hsDigits.length < 6) {
+      setError("HS code must have at least 6 digits, e.g. 1234.56");
+      return;
+    }
     setPending(true);
     setError("");
     const data = Object.fromEntries(new FormData(e.currentTarget).entries());
@@ -116,7 +122,8 @@ export function BookingForm({
           </div>
           <div className="col-span-2">
             <label className={label} htmlFor="hs_code">HS code</label>
-            <input id="hs_code" name="hs_code" placeholder="e.g. 8471.30" className={field} />
+            <input id="hs_code" name="hs_code" required placeholder="e.g. 1234.56" className={field} />
+            <p className="mt-0.5 text-[11px] text-muted">At least 6 digits</p>
           </div>
           <div>
             <label className={label} htmlFor="gross_weight_kg">Gross weight (kg)</label>

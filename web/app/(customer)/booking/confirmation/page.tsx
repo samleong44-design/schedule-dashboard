@@ -46,7 +46,12 @@ export default async function BookingConfirmationPage({ searchParams }: PageProp
           ) : null}
         </dl>
         <p className="mt-4 text-sm">
-          Our team will contact you to confirm. <strong>This is a request, not a confirmed booking.</strong>
+          Thank you for your booking request. Our customer service team has been notified and will
+          contact you shortly to confirm availability and finalise the arrangements.
+        </p>
+        <p className="mt-2 text-sm text-muted">
+          Please note that this submission is a booking request; your booking is confirmed only once
+          our team issues a confirmation.
         </p>
         <div className="mt-5 flex gap-3">
           <Link href="/requests" className="rounded-md bg-accent px-3.5 py-1.5 text-sm font-semibold text-white hover:bg-accent-hover">

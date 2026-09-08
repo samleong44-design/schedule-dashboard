@@ -13,6 +13,7 @@ const items = [
 
 const adminItems = [
   { href: "/admin/users", label: "Users" },
+  { href: "/admin/reports", label: "Reports" },
   { href: "/admin/audit", label: "Audit log" },
 ] as const;
 
