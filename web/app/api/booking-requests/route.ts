@@ -175,7 +175,9 @@ async function sendBookingEmail(args: {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      from: process.env.BOOKING_FROM ?? "YAGO Schedule <bookings@yago.com.my>",
+      // no-reply local part discourages writing to this address; actual replies
+      // are steered to the customer via reply_to below.
+      from: process.env.BOOKING_FROM ?? "YAGO Schedule <no-reply-bookingrequest@yago.com.my>",
       to: BOOKING_RECIPIENTS,
       reply_to: body.contact_email || undefined,
       subject: `${body.is_dangerous_goods ? "[DG] " : ""}Booking request ${ref} — ${snapshot.pol ?? ""} to ${snapshot.pod ?? ""}`,
