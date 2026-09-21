@@ -3,5 +3,11 @@
   base = "web"
   command = "npm run build"
 
+[build.environment]
+  # Turbopack's build cache (.netlify/.next/cache) snapshots env values; it is
+  # never deployed, so the secrets scanner tripping on it is a false positive.
+  # Scanning stays on for repo code and real build output.
+  SECRETS_SCAN_OMIT_PATHS = ".netlify/.next/cache/**"
+
 [[plugins]]
   package = "@netlify/plugin-nextjs"
