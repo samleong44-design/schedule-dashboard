@@ -32,6 +32,10 @@ export async function POST(request: Request) {
   if (hsDigits.length < 6) {
     return NextResponse.json({ error: "HS code must have at least 6 digits, e.g. 1234.56" }, { status: 400 });
   }
+  // The notification email is addressed To: this contact, so it must be real.
+  if (!/^\S+@\S+\.\S+$/.test(String(body.contact_email ?? ""))) {
+    return NextResponse.json({ error: "A valid contact email is required" }, { status: 400 });
+  }
 
   // Container lines: [{container_type_id, qty}] — resolve codes server-side so
   // the stored record is readable even if a type is later renamed.
@@ -103,16 +107,20 @@ export async function POST(request: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Notify the team. The DB row is the source of truth — a mail failure never
-  // fails the customer's submission (docs/04).
+  // Notify the customer (To:) and the team (CC:). The DB row is the source of
+  // truth — a mail failure never fails the customer's submission (docs/04).
   try {
+    const { data: company } = await supabase
+      .from("customer_companies")
+      .select("name")
+      .eq("id", profile.customer_company_id)
+      .maybeSingle();
     await sendBookingEmail({
       ref: `BR-${String(created.id).slice(0, 8).toUpperCase()}`,
       snapshot,
       containers,
       body,
-      companyId: profile.customer_company_id,
-      supabaseUserEmail: user.email ?? "",
+      companyName: company?.name || str(body.contact_name) || "customer",
     });
   } catch (e) {
     console.error("Booking notification email failed:", e);
@@ -137,21 +145,25 @@ async function sendBookingEmail(args: {
   containers: any[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   body: any;
-  companyId: string;
-  supabaseUserEmail: string;
+  companyName: string;
 }) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
     console.warn("RESEND_API_KEY not set — booking email skipped");
     return;
   }
-  const { ref, snapshot, containers, body } = args;
+  const { ref, snapshot, containers, body, companyName } = args;
   const lines = containers.map((l) => `${l.qty} x ${l.code}`).join(" + ");
   const dg = body.is_dangerous_goods
     ? `\n*** DANGEROUS GOODS: UN ${body.un_number} / IMCO ${body.dg_class} ***\n`
     : "";
+  // The customer is in To: and the team in CC:, so the wording must suit both.
   const text = [
-    `New booking request ${ref}`,
+    `Dear ${body.contact_name ?? "customer"},`,
+    ``,
+    `Thank you for your booking request ${ref}. Our customer service team (in CC)`,
+    `has been notified and will contact you shortly to confirm availability and`,
+    `finalise the arrangements.`,
     ``,
     `Sailing:   ${snapshot.vessel ?? "-"} ${snapshot.voyage ?? ""}`,
     `Route:     ${snapshot.pol ?? "-"} -> ${snapshot.pod ?? "-"}`,
@@ -167,19 +179,22 @@ async function sendBookingEmail(args: {
     `Contact:   ${body.contact_name ?? "-"} / ${body.contact_phone ?? "-"} / ${body.contact_email ?? "-"}`,
     body.remarks ? `Remarks:   ${body.remarks}` : "",
     ``,
-    `Reply directly to the customer contact above to proceed.`,
-    `Full record: https://yago-schedule.netlify.app/admin/bookings`,
+    `Please note that this submission is a booking request; your booking is`,
+    `confirmed only once our team issues a confirmation.`,
+    ``,
+    `YAGO AGENCY (M) SDN BHD`,
   ].join("\n");
 
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      // Sender label only — staff replies go to the customer via reply_to below.
+      // Sender label only — replies flow between customer (To/reply_to) and team (CC).
       from: process.env.BOOKING_FROM ?? "YAGO Schedule <bookings@yago.com.my>",
-      to: BOOKING_RECIPIENTS,
-      reply_to: body.contact_email || undefined,
-      subject: `${body.is_dangerous_goods ? "[DG] " : ""}Booking request ${ref} — ${snapshot.pol ?? ""} to ${snapshot.pod ?? ""}`,
+      to: [body.contact_email],
+      cc: BOOKING_RECIPIENTS,
+      reply_to: body.contact_email,
+      subject: `${body.is_dangerous_goods ? "[DG] " : ""}Booking request ${ref} — ${companyName}`,
       text,
     }),
   });
