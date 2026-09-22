@@ -60,7 +60,11 @@ export async function getKpis() {
       .select("id", { count: "exact", head: true })
       .gte("etd", now.toISOString())
       .lt("etd", weekOut.toISOString()),
-    supabase.from("booking_requests").select("id", { count: "exact", head: true }).eq("status", "new"),
+    // No status lifecycle — "recent" means submitted in the last 7 days.
+    supabase
+      .from("booking_requests")
+      .select("id", { count: "exact", head: true })
+      .gte("created_at", new Date(now.getTime() - 7 * 86400e3).toISOString()),
     supabase
       .from("sailings")
       .select("id", { count: "exact", head: true })
@@ -132,7 +136,6 @@ export async function getBookingRequests() {
     pol: r.sailing_snapshot?.pol ?? "",
     pod: r.sailing_snapshot?.pod ?? "",
     submitted: fmtDate(r.created_at),
-    status: r.status as "new" | "in_progress" | "closed",
     carrier: r.sailings?.carriers?.name ?? null,
     cargo: [
       Array.isArray(r.containers) && r.containers.length > 0
@@ -155,7 +158,7 @@ export async function getUsers() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, full_name, email, role, is_active, customer_companies(name)")
+    .select("id, full_name, email, role, is_active, can_view_reports, customer_companies(name)")
     .order("created_at");
   if (error) throw error;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -166,6 +169,7 @@ export async function getUsers() {
     role: (u.role as string)[0].toUpperCase() + (u.role as string).slice(1),
     company: u.customer_companies?.name as string | undefined,
     status: (u.is_active ? "active" : "deactivated") as "active" | "deactivated" | "invited",
+    canViewReports: Boolean(u.can_view_reports),
   }));
 }
 
@@ -197,8 +201,74 @@ export async function getProfile() {
   if (!user) return null;
   const { data } = await supabase
     .from("profiles")
-    .select("full_name, email, role")
+    .select("full_name, email, role, customer_company_id, can_view_reports")
     .eq("id", user.id)
     .single();
-  return data;
+  return data ? { ...data, id: user.id } : null;
+}
+
+// Per-client quarterly summary: bookings + activity within [startIso, endIso).
+export async function getClientReport(startIso: string, endIso: string) {
+  const supabase = await createClient();
+  const [bookings, activity, companies] = await Promise.all([
+    supabase
+      .from("booking_requests")
+      .select("customer_company_id, containers, container_qty, created_at")
+      .gte("created_at", startIso)
+      .lt("created_at", endIso),
+    supabase
+      .from("user_activity")
+      .select("company_id, day")
+      .gte("day", startIso.slice(0, 10))
+      .lt("day", endIso.slice(0, 10)),
+    supabase.from("customer_companies").select("id, name").order("name"),
+  ]);
+
+  type Agg = {
+    company: string;
+    requests: number;
+    containers: number;
+    lastSubmitted: string | null;
+    activeDays: number;
+    lastActive: string | null;
+  };
+  const byCompany = new Map<string, Agg>();
+  const agg = (id: string | null) => {
+    const key = id ?? "unknown";
+    let a = byCompany.get(key);
+    if (!a) {
+      const name = (companies.data ?? []).find((c) => c.id === id)?.name ?? "—";
+      a = { company: name, requests: 0, containers: 0, lastSubmitted: null, activeDays: 0, lastActive: null };
+      byCompany.set(key, a);
+    }
+    return a;
+  };
+
+  for (const b of bookings.data ?? []) {
+    const a = agg(b.customer_company_id);
+    a.requests += 1;
+    a.containers += Array.isArray(b.containers)
+      ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (b.containers as any[]).reduce((s, l) => s + (Number(l.qty) || 0), 0)
+      : Number(b.container_qty) || 0;
+    if (!a.lastSubmitted || b.created_at > a.lastSubmitted) a.lastSubmitted = b.created_at;
+  }
+  const daysSeen = new Map<string, Set<string>>();
+  for (const ev of activity.data ?? []) {
+    if (!ev.company_id) continue;
+    const a = agg(ev.company_id);
+    let set = daysSeen.get(ev.company_id);
+    if (!set) daysSeen.set(ev.company_id, (set = new Set()));
+    set.add(ev.day);
+    if (!a.lastActive || ev.day > a.lastActive) a.lastActive = ev.day;
+  }
+  for (const [id, set] of daysSeen) agg(id).activeDays = set.size;
+
+  return [...byCompany.values()]
+    .map((a) => ({
+      ...a,
+      lastSubmitted: a.lastSubmitted ? fmtDate(a.lastSubmitted) : "—",
+      lastActive: a.lastActive ? fmtDate(a.lastActive) : "—",
+    }))
+    .sort((x, y) => y.requests - x.requests || y.activeDays - x.activeDays);
 }

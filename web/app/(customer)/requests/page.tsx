@@ -1,19 +1,16 @@
 import Link from "next/link";
-import { Card, EmptyState, StatusBadge, Th, Td, type BadgeTone } from "@/components/ui";
+import { Card, EmptyState, StatusBadge, Th, Td } from "@/components/ui";
 import { createClient } from "@/lib/supabase/server";
 import { fmtDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
-
-const statusTone: Record<string, BadgeTone> = { new: "neutral", in_progress: "progress", closed: "success" };
-const statusLabel: Record<string, string> = { new: "New", in_progress: "In progress", closed: "Closed" };
 
 export default async function RequestsPage() {
   const supabase = await createClient();
   // RLS scopes this to the customer's own company (docs/04) — colleagues see each other's.
   const { data: requests } = await supabase
     .from("booking_requests")
-    .select("id, sailing_snapshot, containers, container_qty, status, created_at, container_types(code)")
+    .select("id, sailing_snapshot, containers, container_qty, created_at, container_types(code)")
     .order("created_at", { ascending: false });
 
   return (
@@ -47,7 +44,7 @@ export default async function RequestsPage() {
                           : "—"}
                     </Td>
                     <Td right>{fmtDate(r.created_at)}</Td>
-                    <Td><StatusBadge tone={statusTone[r.status] ?? "neutral"}>{statusLabel[r.status] ?? r.status}</StatusBadge></Td>
+                    <Td><StatusBadge tone="success">Sent</StatusBadge></Td>
                   </tr>
                 );
               })}
@@ -57,6 +54,7 @@ export default async function RequestsPage() {
       </Card>
       <p className="mt-3 text-xs text-muted">
         To change a submitted request, submit a new one and mention the change in remarks.
+        After submission, all correspondence is by email.
       </p>
     </>
   );

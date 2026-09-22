@@ -17,7 +17,13 @@ const adminItems = [
   { href: "/admin/audit", label: "Audit log" },
 ] as const;
 
-export function NavLinks({ pendingCount = 0 }: { pendingCount?: number }) {
+export function NavLinks({
+  pendingCount = 0,
+  showClientReport = false,
+}: {
+  pendingCount?: number;
+  showClientReport?: boolean;
+}) {
   const pathname = usePathname();
 
   const link = (href: string, label: string) => {
@@ -39,6 +45,7 @@ export function NavLinks({ pendingCount = 0 }: { pendingCount?: number }) {
   return (
     <nav className="flex flex-col gap-0.5 px-2 pt-2">
       {items.map((i) => link(i.href, i.label))}
+      {showClientReport && link("/admin/clients", "Client Report")}
       <div className="mt-3 mb-1 px-3 text-[11px] font-semibold tracking-wide text-faint">ADMIN</div>
       {adminItems.map((i) => link(i.href, i.label))}
     </nav>

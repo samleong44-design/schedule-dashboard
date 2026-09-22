@@ -16,9 +16,10 @@ export default async function StaffLayout({ children }: LayoutProps<"/">) {
   const { count } = await supabase
     .from("booking_requests")
     .select("id", { count: "exact", head: true })
-    .eq("status", "new");
+    .gte("created_at", new Date(Date.now() - 7 * 86400e3).toISOString());
 
   const roleLabel = profile ? profile.role[0].toUpperCase() + profile.role.slice(1) : "";
+  const showClientReport = profile?.role === "admin" || Boolean(profile?.can_view_reports);
 
   return (
     <div className="flex min-h-screen">
@@ -26,7 +27,7 @@ export default async function StaffLayout({ children }: LayoutProps<"/">) {
         <Link href="/dashboard" className="px-5 py-4 text-sm font-bold tracking-tight text-foreground">
           Schedule Console
         </Link>
-        <NavLinks pendingCount={count ?? 0} />
+        <NavLinks pendingCount={count ?? 0} showClientReport={showClientReport} />
         <div className="mt-auto flex items-center justify-between border-t border-line px-5 py-3">
           <span className="text-xs text-muted">
             {profile?.full_name ?? profile?.email ?? "—"} · {roleLabel}

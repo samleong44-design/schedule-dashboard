@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { redirect } from "next/navigation";
 import { getProfile } from "@/lib/queries";
+import { createClient } from "@/lib/supabase/server";
 import { SignOutButton } from "@/components/sign-out";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +12,16 @@ export default async function CustomerLayout({ children }: LayoutProps<"/">) {
   const profile = await getProfile();
   if (!profile) redirect("/login");
   if (profile.role !== "customer") redirect("/dashboard");
+
+  // Activity tracking: one row per user per MYT day, feeds the client report.
+  // Duplicate days are ignored; failures never block the page.
+  const supabase = await createClient();
+  await supabase
+    .from("user_activity")
+    .upsert(
+      { user_id: profile.id, company_id: profile.customer_company_id },
+      { onConflict: "user_id,day", ignoreDuplicates: true },
+    );
 
   return (
     <div className="flex min-h-screen flex-col">

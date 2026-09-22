@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, PrimaryButton, GhostButton, StatusBadge, Th, Td, type BadgeTone } from "@/components/ui";
+import { createClient } from "@/lib/supabase/client";
 
 type UserRow = {
   id: string;
@@ -11,6 +12,7 @@ type UserRow = {
   role: string;
   company?: string;
   status: "invited" | "active" | "deactivated";
+  canViewReports: boolean;
 };
 
 type Company = { id: string; name: string };
@@ -22,6 +24,7 @@ const statusTone: Record<UserRow["status"], BadgeTone> = {
 };
 
 export function UsersClient({ users, companies }: { users: UserRow[]; companies: Company[] }) {
+  const [rows, setRows] = useState(users);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [role, setRole] = useState("customer");
   const [email, setEmail] = useState("");
@@ -32,6 +35,17 @@ export function UsersClient({ users, companies }: { users: UserRow[]; companies:
   const [notice, setNotice] = useState("");
   const [pending, setPending] = useState(false);
   const router = useRouter();
+
+  // Admin-only by RLS ("admin manages profiles").
+  const setReportAccess = async (id: string, canView: boolean) => {
+    setRows((rs) => rs.map((r) => (r.id === id ? { ...r, canViewReports: canView } : r)));
+    const supabase = createClient();
+    const { error: err } = await supabase.from("profiles").update({ can_view_reports: canView }).eq("id", id);
+    if (err) {
+      setRows((rs) => rs.map((r) => (r.id === id ? { ...r, canViewReports: !canView } : r)));
+      alert("Failed to update report access — try again.");
+    }
+  };
 
   const invite = async () => {
     setPending(true);
@@ -78,16 +92,30 @@ export function UsersClient({ users, companies }: { users: UserRow[]; companies:
       <Card className="max-w-3xl">
         <table className="w-full border-collapse">
           <thead>
-            <tr><Th>NAME</Th><Th>EMAIL</Th><Th>ROLE</Th><Th>COMPANY</Th><Th>STATUS</Th></tr>
+            <tr><Th>NAME</Th><Th>EMAIL</Th><Th>ROLE</Th><Th>COMPANY</Th><Th>STATUS</Th><Th>CLIENT REPORT</Th></tr>
           </thead>
           <tbody>
-            {users.map((u) => (
+            {rows.map((u) => (
               <tr key={u.id} className="hover:bg-slate-50">
                 <Td>{u.name}</Td>
                 <Td className="text-muted">{u.email}</Td>
                 <Td>{u.role}</Td>
                 <Td>{u.company ?? "—"}</Td>
                 <Td><StatusBadge tone={statusTone[u.status]}>{u.status[0].toUpperCase() + u.status.slice(1)}</StatusBadge></Td>
+                <Td>
+                  {u.role === "Admin" ? (
+                    <span className="text-xs text-muted">Always</span>
+                  ) : u.role === "Staff" ? (
+                    <input
+                      type="checkbox"
+                      aria-label={`Client report access for ${u.email}`}
+                      checked={u.canViewReports}
+                      onChange={(e) => setReportAccess(u.id, e.target.checked)}
+                    />
+                  ) : (
+                    <span className="text-xs text-muted">—</span>
+                  )}
+                </Td>
               </tr>
             ))}
           </tbody>

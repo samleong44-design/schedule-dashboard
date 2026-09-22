@@ -64,7 +64,7 @@ export function DashboardClient({
           <div className="mt-1 text-2xl font-bold tabular-nums">{kpis.sailingsThisWeek}</div>
         </Card>
         <Card className="p-4">
-          <div className="text-[11px] font-semibold tracking-wide text-faint">PENDING REQUESTS</div>
+          <div className="text-[11px] font-semibold tracking-wide text-faint">REQUESTS (7 DAYS)</div>
           <div className="mt-1 text-2xl font-bold tabular-nums">
             {kpis.pendingRequests}{" "}
             <Link href="/admin/bookings" className="text-xs font-medium text-accent">view →</Link>
