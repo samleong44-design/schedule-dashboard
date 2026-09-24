@@ -1,9 +1,12 @@
+import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-// Admin-only. Sends a Supabase invite email; role + company travel in metadata
-// and the handle_new_user trigger builds the profile (docs/01-auth-and-roles.md).
+// Admin-only. Creates the account directly with a temporary password shown
+// once to the admin — no invite email, because corporate mail scanners burn
+// one-time links before recipients can click them. Role + company travel in
+// metadata and the handle_new_user trigger builds the profile (docs/01).
 export async function POST(request: Request) {
   const supabase = await createClient();
   const {
@@ -53,14 +56,24 @@ export async function POST(request: Request) {
     }
   }
 
-  const origin = new URL(request.url).origin;
-  const { error } = await admin.auth.admin.inviteUserByEmail(email, {
-    data: {
+  // Admin may supply a password; otherwise generate one to read off the screen.
+  if (typeof body.password === "string" && body.password.length > 0 && body.password.length < 8) {
+    return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
+  }
+  const tempPassword =
+    typeof body.password === "string" && body.password.length >= 8
+      ? body.password
+      : "Yago-" + crypto.randomBytes(4).toString("hex");
+
+  const { error } = await admin.auth.admin.createUser({
+    email,
+    password: tempPassword,
+    email_confirm: true,
+    user_metadata: {
       full_name: fullName,
       role,
       customer_company_id: role === "customer" ? resolvedCompanyId : "",
     },
-    redirectTo: `${origin}/reset-password`,
   });
   if (error) {
     return NextResponse.json(
@@ -71,11 +84,11 @@ export async function POST(request: Request) {
 
   await admin.from("audit_log").insert({
     actor_id: user.id,
-    action: "User invited",
+    action: "User created",
     entity_type: "user",
     entity_id: email,
     after: { role, customer_company_id: resolvedCompanyId },
   });
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, tempPassword });
 }

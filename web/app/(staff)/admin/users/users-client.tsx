@@ -23,6 +23,8 @@ const statusTone: Record<UserRow["status"], BadgeTone> = {
   deactivated: "destructive",
 };
 
+const genPassword = () => "Yago-" + Math.random().toString(16).slice(2, 10);
+
 export function UsersClient({ users, companies }: { users: UserRow[]; companies: Company[] }) {
   const [rows, setRows] = useState(users);
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -31,10 +33,48 @@ export function UsersClient({ users, companies }: { users: UserRow[]; companies:
   const [fullName, setFullName] = useState("");
   const [companyId, setCompanyId] = useState("");
   const [newCompany, setNewCompany] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [credentials, setCredentials] = useState<{ email: string; password: string } | null>(null);
+  const [copied, setCopied] = useState(false);
   const [pending, setPending] = useState(false);
+  // Set-new-password dialog state
+  const [resetFor, setResetFor] = useState<UserRow | null>(null);
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetError, setResetError] = useState("");
   const router = useRouter();
+
+  const copyCredentials = async (creds: { email: string; password: string }) => {
+    try {
+      await navigator.clipboard.writeText(`Login: ${creds.email}\nPassword: ${creds.password}\nhttps://schedule.yago.com.my`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* clipboard unavailable — values stay visible on screen */
+    }
+  };
+
+  const doSetPassword = async () => {
+    if (!resetFor) return;
+    setPending(true);
+    setResetError("");
+    const res = await fetch("/api/set-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: resetFor.id, password: resetPassword }),
+    });
+    const bodyJson = await res.json();
+    setPending(false);
+    if (!res.ok) {
+      setResetError(bodyJson.error ?? "Failed to set password");
+      return;
+    }
+    setCredentials({ email: bodyJson.email, password: bodyJson.password });
+    setNotice("");
+    setResetFor(null);
+    setResetPassword("");
+  };
 
   // Admin-only by RLS ("admin manages profiles").
   const setReportAccess = async (id: string, canView: boolean) => {
@@ -59,20 +99,23 @@ export function UsersClient({ users, companies }: { users: UserRow[]; companies:
         role,
         customer_company_id: companyId || null,
         new_company_name: companyId ? "" : newCompany,
+        password,
       }),
     });
     const body = await res.json();
     setPending(false);
     if (!res.ok) {
-      setError(body.error ?? "Invite failed");
+      setError(body.error ?? "Could not create the account");
       return;
     }
-    setNotice(`Invitation sent to ${email}. They set their own password from the email link.`);
+    setCredentials({ email, password: body.tempPassword });
+    setNotice("");
     setInviteOpen(false);
     setEmail("");
     setFullName("");
     setCompanyId("");
     setNewCompany("");
+    setPassword("");
     router.refresh();
   };
 
@@ -80,7 +123,9 @@ export function UsersClient({ users, companies }: { users: UserRow[]; companies:
     <>
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Users</h1>
-        <PrimaryButton onClick={() => { setInviteOpen(true); setNotice(""); }}>+ New user</PrimaryButton>
+        <PrimaryButton onClick={() => { setInviteOpen(true); setNotice(""); setCredentials(null); setPassword(genPassword()); }}>
+          + New user
+        </PrimaryButton>
       </div>
 
       {notice && (
@@ -89,10 +134,31 @@ export function UsersClient({ users, companies }: { users: UserRow[]; companies:
         </div>
       )}
 
+      {credentials && (
+        <div className="mb-3 max-w-3xl rounded-md border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          <div className="font-semibold">Login details for {credentials.email}</div>
+          <div className="mt-1">
+            Password: <span className="rounded bg-white px-2 py-0.5 font-mono font-semibold">{credentials.password}</span>
+          </div>
+          <div className="mt-2 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => copyCredentials(credentials)}
+              className="rounded-md border border-emerald-300 bg-white px-2.5 py-1 text-xs font-medium hover:bg-emerald-100"
+            >
+              {copied ? "Copied ✓" : "Copy login details"}
+            </button>
+            <span className="text-xs text-emerald-800">
+              Share these with them directly (e.g. WhatsApp). Shown once — it will not appear again.
+            </span>
+          </div>
+        </div>
+      )}
+
       <Card className="max-w-3xl">
         <table className="w-full border-collapse">
           <thead>
-            <tr><Th>NAME</Th><Th>EMAIL</Th><Th>ROLE</Th><Th>COMPANY</Th><Th>STATUS</Th><Th>CLIENT REPORT</Th></tr>
+            <tr><Th>NAME</Th><Th>EMAIL</Th><Th>ROLE</Th><Th>COMPANY</Th><Th>STATUS</Th><Th>CLIENT REPORT</Th><Th>PASSWORD</Th></tr>
           </thead>
           <tbody>
             {rows.map((u) => (
@@ -115,6 +181,15 @@ export function UsersClient({ users, companies }: { users: UserRow[]; companies:
                   ) : (
                     <span className="text-xs text-muted">—</span>
                   )}
+                </Td>
+                <Td>
+                  <button
+                    type="button"
+                    onClick={() => { setResetFor(u); setResetPassword(genPassword()); setResetError(""); setCredentials(null); }}
+                    className="rounded-md border border-line px-2 py-1 text-xs font-medium hover:bg-slate-50"
+                  >
+                    Set new password
+                  </button>
                 </Td>
               </tr>
             ))}
@@ -168,11 +243,46 @@ export function UsersClient({ users, companies }: { users: UserRow[]; companies:
               </>
             )}
 
-            <p className="mb-4 text-xs text-muted">An invitation email will be sent. They set their own password.</p>
+            <label className="mb-1 block text-sm font-semibold" htmlFor="inv-password">Password</label>
+            <input id="inv-password" value={password} minLength={8}
+              onChange={(e) => setPassword(e.target.value)}
+              className="mb-1 w-full rounded-md border border-line px-3 py-2 font-mono text-sm" />
+            <p className="mb-4 text-xs text-muted">
+              Keep the suggested one or type your own (min 8 characters). No email is sent —
+              you share the login with them directly.
+            </p>
 
             <div className="flex justify-end gap-2">
               <GhostButton onClick={() => setInviteOpen(false)}>Cancel</GhostButton>
-              <PrimaryButton onClick={invite}>{pending ? "Sending…" : "Send invite"}</PrimaryButton>
+              <PrimaryButton onClick={invite}>{pending ? "Creating…" : "Create account"}</PrimaryButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {resetFor && (
+        <div className="fixed inset-0 z-10 flex items-center justify-center bg-slate-900/50 p-6">
+          <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-2xl">
+            <div className="mb-1 text-base font-semibold">Set new password</div>
+            <p className="mb-4 text-sm text-muted">for <strong>{resetFor.email}</strong></p>
+
+            {resetError && (
+              <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {resetError}
+              </div>
+            )}
+
+            <label className="mb-1 block text-sm font-semibold" htmlFor="reset-password">New password</label>
+            <input id="reset-password" value={resetPassword} minLength={8}
+              onChange={(e) => setResetPassword(e.target.value)}
+              className="mb-1 w-full rounded-md border border-line px-3 py-2 font-mono text-sm" />
+            <p className="mb-4 text-xs text-muted">
+              Their old password stops working immediately. Share the new one with them directly.
+            </p>
+
+            <div className="flex justify-end gap-2">
+              <GhostButton onClick={() => setResetFor(null)}>Cancel</GhostButton>
+              <PrimaryButton onClick={doSetPassword}>{pending ? "Setting…" : "Set password"}</PrimaryButton>
             </div>
           </div>
         </div>
