@@ -32,7 +32,8 @@ export async function proxy(request: NextRequest) {
   const isPublic =
     path.startsWith("/login") ||
     path.startsWith("/forgot-password") ||
-    path.startsWith("/reset-password");
+    path.startsWith("/reset-password") ||
+    path.startsWith("/confirm");
   if (!user && !isPublic) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
